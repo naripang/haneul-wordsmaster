@@ -7,7 +7,6 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" />
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
   :root{
     --paper:#EEF5FC; --card:#FFFFFF; --ink:#122A4D; --ink-soft:#5D7290; --line:#D4E2F0;
@@ -137,6 +136,24 @@ function el(tag, cls, html){ const e=document.createElement(tag); if(cls) e.clas
 function qs(sel, root){ return (root||document).querySelector(sel); }
 
 /**
+ * 엑셀 업로드 기능(SheetJS, ~700KB)은 학생 대부분에게는 필요 없으므로 페이지 로딩 시
+ * 무조건 불러오지 않고, 교사가 실제로 파일을 선택하는 순간에만 불러옵니다.
+ */
+let _xlsxLoadPromise = null;
+function ensureXLSX(){
+  if(window.XLSX) return Promise.resolve();
+  if(_xlsxLoadPromise) return _xlsxLoadPromise;
+  _xlsxLoadPromise = new Promise((resolve, reject)=>{
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+    s.onload = ()=> resolve();
+    s.onerror = ()=> { _xlsxLoadPromise = null; reject(new Error('엑셀 라이브러리를 불러오지 못했습니다.')); };
+    document.head.appendChild(s);
+  });
+  return _xlsxLoadPromise;
+}
+
+/**
  * action: 서버 라우터가 처리할 액션 이름 (예: 'studentLogin')
  * params: {id, pw, round, answers, ...} 같은 요청 데이터. token은 자동으로 붙습니다.
  *
@@ -260,9 +277,12 @@ function logout(){
 /* ===================== 공통 헤더 ===================== */
 function headerBlock(title, tabs){
   const header = el('header','top');
+  const teacherLabel = state.user.role==='admin' ? '관리자'
+    : state.user.role==='grade' ? `${state.user.name} 선생님 (${state.user.grade}학년 학년관리자)`
+    : `${state.user.name} 선생님 (${state.user.grade}학년 ${state.user.class}반 담임)`;
   const nameLabel = state.role==='student'
     ? `${state.user.grade}학년 ${state.user.class}반 ${state.user.number}번 ${state.user.name}`
-    : (state.user.role==='admin' ? '관리자' : `${state.user.name} 선생님 (${state.user.grade}학년 ${state.user.class}반 담임)`);
+    : teacherLabel;
   header.innerHTML = `<h1>${title}</h1>`;
   const who = el('div','whoami');
   who.innerHTML = `<span class="pill">${nameLabel}</span>`;
@@ -845,8 +865,10 @@ async function renderTeacherStudents(body){
   qs('#excelFile', fileRow).addEventListener('change', async (e)=>{
     const file = e.target.files[0];
     if(!file) return;
-    msg.innerHTML = '<span class="spinner"></span> 파일을 읽는 중...';
+    msg.innerHTML = '<span class="spinner"></span> 엑셀 도구를 불러오는 중...';
     try{
+      await ensureXLSX();
+      msg.innerHTML = '<span class="spinner"></span> 파일을 읽는 중...';
       const buf = await file.arrayBuffer();
       const wb = XLSX.read(buf, { type: 'array' });
       const sheetName = wb.SheetNames[0];
@@ -888,7 +910,15 @@ async function renderTeacherStudents(body){
         const r = await call('resetStudentPassword', {studentId: s.id, newPw: '1234'});
         alert(r.ok ? r.message : r.message);
       };
-      td.appendChild(resetBtn);
+      const delBtn = el('button','btn btn-ghost btn-sm','삭제');
+      delBtn.style.color = 'var(--wrong)';
+      delBtn.onclick = async ()=>{
+        if(!confirm(`${s.name} 학생 계정을 삭제할까요? 응시 기록과 오답노트도 함께 삭제되며 되돌릴 수 없습니다.`)) return;
+        const r = await call('deleteStudent', {studentId: s.id});
+        if(r.ok) renderTeacherStudents(body);
+        else alert(r.message);
+      };
+      td.appendChild(resetBtn); td.appendChild(delBtn);
       tr.innerHTML = `<td>${s.grade}</td><td>${s.class}</td><td>${s.number}</td><td>${s.name}</td><td>${s.id}</td>`;
       tr.appendChild(td);
       table.appendChild(tr);
@@ -908,7 +938,7 @@ async function renderTeacherAccounts(body){
   bulkPanel.appendChild(el('div','hint',
     '두 가지 형식 중 편한 걸 쓰세요:<br>' +
     '· <b>담임 간편 등록</b>: 아이디(탭)이름(탭)학년(탭)반(탭)초기비밀번호 — role은 자동으로 담임(homeroom)으로 등록돼요.<br>' +
-    '· <b>역할 직접 지정</b>: 아이디(탭)이름(탭)역할(admin/homeroom)(탭)학년(탭)반(탭)초기비밀번호 — 관리자 계정은 학년/반 칸에 ALL을 적으세요.<br>' +
+    '· <b>역할 직접 지정</b>: 아이디(탭)이름(탭)역할(admin/grade/homeroom)(탭)학년(탭)반(탭)초기비밀번호 — 관리자는 학년/반에 ALL, 학년관리자(grade)는 학년 숫자만 적고 반은 비워도 자동으로 ALL 처리돼요.<br>' +
     '엑셀 파일(.xlsx/.csv)을 올려도 자동으로 읽어서 채워줘요.'
   ));
 
@@ -917,7 +947,7 @@ async function renderTeacherAccounts(body){
   bulkPanel.appendChild(fileRow);
 
   const ta = el('textarea');
-  ta.placeholder = '[담임 간편 등록 예시]\nt101\t김담임\t1\t1\t1234\nt102\t이담임\t1\t2\t1234\n\n[역할 직접 지정 예시]\nadmin2\t박관리자\tadmin\tALL\tALL\t1234';
+  ta.placeholder = '[담임 간편 등록 예시]\nt101\t김담임\t1\t1\t1234\nt102\t이담임\t1\t2\t1234\n\n[역할 직접 지정 예시]\nadmin2\t박관리자\tadmin\tALL\tALL\t1234\ng1\t최학년부장\tgrade\t1\tALL\t1234';
   bulkPanel.appendChild(ta);
 
   const msg = el('div','','');
@@ -925,8 +955,10 @@ async function renderTeacherAccounts(body){
   qs('#teacherExcelFile', fileRow).addEventListener('change', async (e)=>{
     const file = e.target.files[0];
     if(!file) return;
-    msg.innerHTML = '<span class="spinner"></span> 파일을 읽는 중...';
+    msg.innerHTML = '<span class="spinner"></span> 엑셀 도구를 불러오는 중...';
     try{
+      await ensureXLSX();
+      msg.innerHTML = '<span class="spinner"></span> 파일을 읽는 중...';
       const buf = await file.arrayBuffer();
       const wb = XLSX.read(buf, { type: 'array' });
       const sheetName = wb.SheetNames[0];
@@ -968,8 +1000,32 @@ async function renderTeacherAccounts(body){
         const r = await call('resetTeacherPassword', {teacherId: t.id, newPw: '1234'});
         alert(r.ok ? r.message : r.message);
       };
-      td.appendChild(resetBtn);
-      tr.innerHTML = `<td>${t.id}</td><td>${t.name}</td><td>${t.role==='admin'?'관리자':'담임'}</td><td>${t.grade}</td><td>${t.class}</td>`;
+      const editBtn = el('button','btn btn-ghost btn-sm','수정');
+      editBtn.onclick = async ()=>{
+        const roleInput = prompt('역할을 입력하세요 (admin / grade / homeroom)', t.role);
+        if(roleInput===null) return;
+        let grade = '', cls = '';
+        if(!/^admin$/i.test(roleInput)){
+          grade = prompt('학년(숫자)을 입력하세요', t.grade==='ALL'?'':t.grade) || '';
+          if(!/^grade$/i.test(roleInput)){
+            cls = prompt('반(숫자)을 입력하세요', t.class==='ALL'?'':t.class) || '';
+          }
+        }
+        const r = await call('updateTeacher', {teacherId: t.id, role: roleInput, grade, class: cls});
+        if(r.ok) renderTeacherAccounts(body);
+        else alert(r.message);
+      };
+      const delBtn = el('button','btn btn-ghost btn-sm','삭제');
+      delBtn.style.color = 'var(--wrong)';
+      delBtn.onclick = async ()=>{
+        if(!confirm(`${t.name} 계정을 삭제할까요? 되돌릴 수 없습니다.`)) return;
+        const r = await call('deleteTeacher', {teacherId: t.id});
+        if(r.ok) renderTeacherAccounts(body);
+        else alert(r.message);
+      };
+      td.appendChild(resetBtn); td.appendChild(editBtn); td.appendChild(delBtn);
+      const roleLabel = t.role==='admin' ? '관리자' : t.role==='grade' ? '학년관리자' : '담임';
+      tr.innerHTML = `<td>${t.id}</td><td>${t.name}</td><td>${roleLabel}</td><td>${t.grade}</td><td>${t.class}</td>`;
       tr.appendChild(td);
       table.appendChild(tr);
     });
