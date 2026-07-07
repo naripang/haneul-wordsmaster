@@ -558,6 +558,8 @@ async function renderTeacher(){
 }
 
 let selectedRound = null;
+let statusGradeFilter = 'ALL';
+let statusClassFilter = 'ALL';
 async function renderTeacherStatus(body){
   const roundsRes = await call('listRounds', {});
   body.innerHTML = '';
@@ -594,16 +596,41 @@ async function renderTeacherStatus(body){
   statsPanel.appendChild(el('div','hint',`완료율 ${res.summary.completionRate}%`));
   body.appendChild(statsPanel);
 
+  // 학년/반 필터 - 미응시/완료 목록 둘 다에 적용
+  const allStudentsInView = res.notDone.concat(res.completed);
+  const grades = [...new Set(allStudentsInView.map(s=>String(s.grade)))].sort((a,b)=>Number(a)-Number(b));
+  const classes = [...new Set(allStudentsInView.map(s=>String(s.class)))].sort((a,b)=>Number(a)-Number(b));
+
+  const filterPanel = el('div','panel');
+  filterPanel.appendChild(el('h2', null, '학년/반 필터'));
+  const filterRow = el('div','row');
+  const gradeSel = el('select');
+  gradeSel.innerHTML = '<option value="ALL">전체 학년</option>' + grades.map(g=>`<option value="${g}">${g}학년</option>`).join('');
+  gradeSel.value = statusGradeFilter;
+  const classSel = el('select');
+  classSel.innerHTML = '<option value="ALL">전체 반</option>' + classes.map(c=>`<option value="${c}">${c}반</option>`).join('');
+  classSel.value = statusClassFilter;
+  gradeSel.onchange = e=>{ statusGradeFilter = e.target.value; renderTeacherStatus(body); };
+  classSel.onchange = e=>{ statusClassFilter = e.target.value; renderTeacherStatus(body); };
+  const gField = el('div','field'); gField.innerHTML='<label>학년</label>'; gField.appendChild(gradeSel);
+  const cField = el('div','field'); cField.innerHTML='<label>반</label>'; cField.appendChild(classSel);
+  filterRow.appendChild(gField); filterRow.appendChild(cField);
+  filterPanel.appendChild(filterRow);
+  body.appendChild(filterPanel);
+
+  const matchesFilter = s => (statusGradeFilter==='ALL' || String(s.grade)===statusGradeFilter) && (statusClassFilter==='ALL' || String(s.class)===statusClassFilter);
+  const filteredNotDone = res.notDone.filter(matchesFilter);
+  const filteredCompleted = res.completed.filter(matchesFilter);
+
   const notDonePanel = el('div','panel');
-  notDonePanel.appendChild(el('h2', null, `미응시 학생 (밀리고 있는 학생) <span class="badge badge-overdue">${res.notDone.length}명</span>`));
-  if(res.notDone.length===0){
-    notDonePanel.appendChild(el('div','hint','전원 응시 완료했어요. 👏'));
+  notDonePanel.appendChild(el('h2', null, `미응시 학생 (밀리고 있는 학생) <span class="badge badge-overdue">${filteredNotDone.length}명</span>`));
+  if(filteredNotDone.length===0){
+    notDonePanel.appendChild(el('div','hint', res.notDone.length===0 ? '전원 응시 완료했어요. 👏' : '선택한 학년/반에는 미응시 학생이 없어요.'));
   } else {
     const table = el('table');
     table.innerHTML = '<tr><th>학년</th><th>반</th><th>번호</th><th>이름</th><th></th></tr>';
-    res.notDone.forEach(s=>{
+    filteredNotDone.forEach(s=>{
       const tr = el('tr','notdone-row');
-      const retakeCell = state.user.role==='admin' ? '' : '';
       tr.innerHTML = `<td>${s.grade}</td><td>${s.class}</td><td>${s.number}</td><td>${s.name}</td><td></td>`;
       table.appendChild(tr);
     });
@@ -612,13 +639,13 @@ async function renderTeacherStatus(body){
   body.appendChild(notDonePanel);
 
   const donePanel = el('div','panel');
-  donePanel.appendChild(el('h2', null, '완료 학생'));
-  if(res.completed.length===0){
-    donePanel.appendChild(el('div','hint','아직 완료한 학생이 없어요.'));
+  donePanel.appendChild(el('h2', null, `완료 학생 <span class="badge badge-done">${filteredCompleted.length}명</span>`));
+  if(filteredCompleted.length===0){
+    donePanel.appendChild(el('div','hint', res.completed.length===0 ? '아직 완료한 학생이 없어요.' : '선택한 학년/반에는 완료한 학생이 없어요.'));
   } else {
     const table = el('table');
     table.innerHTML = '<tr><th>학년</th><th>반</th><th>번호</th><th>이름</th><th>점수</th><th>제출시각</th><th></th></tr>';
-    res.completed.forEach(s=>{
+    filteredCompleted.forEach(s=>{
       const tr = el('tr');
       const td = el('td');
       const retakeBtn = el('button','btn btn-ghost btn-sm','재응시 허용');
