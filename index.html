@@ -1,0 +1,838 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>단어 시험</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" />
+<style>
+  :root{
+    --paper:#EEF5FC; --card:#FFFFFF; --ink:#122A4D; --ink-soft:#5D7290; --line:#D4E2F0;
+    --sky:#2F7DE1; --sky-soft:#E4F1FD; --sky-text:#1B4F8C;
+    --correct:#12876B; --correct-soft:#E3F5EF; --wrong:#C1435A; --wrong-soft:#FBEAEE;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{background:var(--paper); color:var(--ink); font-family:'Pretendard',-apple-system,'Malgun Gothic',sans-serif; min-height:100vh; -webkit-font-smoothing:antialiased;}
+  .app{max-width:840px; margin:0 auto; padding:22px 16px 70px;}
+  header.top{display:flex; align-items:center; justify-content:space-between; margin-bottom:18px; flex-wrap:wrap; gap:8px;}
+  header.top h1{font-family:'Source Serif 4',serif; font-size:20px; font-weight:700; margin:0;}
+  header.top .sub{font-size:11.5px; color:var(--ink-soft); font-family:'IBM Plex Mono',monospace;}
+  .whoami{display:flex; align-items:center; gap:10px; font-size:13px;}
+  .whoami .pill{background:var(--card); border:1px solid var(--line); border-radius:99px; padding:5px 12px; font-weight:600;}
+  .navtabs{display:flex; gap:6px; flex-wrap:wrap; margin-bottom:16px;}
+  .navtab{font-size:12.5px; font-weight:600; padding:8px 12px; border-radius:8px 8px 2px 2px; border:1px solid var(--line); border-bottom:3px solid var(--line); background:var(--card); color:var(--ink-soft); cursor:pointer;}
+  .navtab.active{color:var(--ink); border-color:var(--sky); background:var(--sky-soft);}
+  .panel{background:var(--card); border:1px solid var(--line); border-radius:14px; padding:20px; margin-bottom:14px;}
+  .panel h2{font-size:14px; margin:0 0 12px; color:var(--ink-soft); font-weight:600; display:flex; align-items:center; gap:8px;}
+  .row{display:flex; gap:10px; flex-wrap:wrap; margin-bottom:12px;}
+  .row:last-child{margin-bottom:0;}
+  label{font-size:12.5px; color:var(--ink-soft); font-weight:600; display:block; margin-bottom:5px;}
+  input, select, textarea{padding:10px 11px; border-radius:9px; border:1.5px solid var(--line); font-size:14px; font-family:inherit; background:#fff; color:var(--ink); width:100%;}
+  textarea{font-family:'IBM Plex Mono',monospace; font-size:12.5px; min-height:120px;}
+  .field{flex:1; min-width:120px;}
+  .btn{display:inline-flex; align-items:center; justify-content:center; gap:6px; padding:11px 18px; border-radius:10px; border:none; font-family:inherit; font-weight:700; font-size:14px; cursor:pointer; transition:transform .08s ease;}
+  .btn:active{transform:scale(.98);}
+  .btn-primary{background:var(--ink); color:#fff;}
+  .btn-teal{background:var(--sky); color:#fff;}
+  .btn-ghost{background:transparent; color:var(--ink-soft); border:1.5px solid var(--line);}
+  .btn-danger{background:var(--wrong); color:#fff;}
+  .btn-block{width:100%;}
+  .btn:disabled{opacity:.4; cursor:not-allowed;}
+  .btn-sm{padding:6px 11px; font-size:12px; border-radius:7px;}
+  .hint{font-size:12px; color:var(--ink-soft); margin-top:8px; line-height:1.5;}
+  .error{color:var(--wrong); font-size:13px; margin-top:8px;}
+  .success{color:var(--correct); font-size:13px; margin-top:8px;}
+
+  table{width:100%; border-collapse:collapse; font-size:13px;}
+  th,td{padding:8px 8px; text-align:left; border-bottom:1px solid var(--line);}
+  th{color:var(--ink-soft); font-weight:600; font-size:12px;}
+  tr:last-child td{border-bottom:none;}
+
+  .badge{display:inline-flex; align-items:center; gap:5px; font-size:11px; font-weight:700; font-family:'IBM Plex Mono',monospace; padding:3px 9px; border-radius:99px;}
+  .badge-done{background:var(--correct-soft); color:var(--correct);}
+  .badge-available{background:var(--sky-soft); color:var(--sky-text);}
+  .badge-upcoming{background:#EEF0F4; color:var(--ink-soft);}
+  .badge-overdue{background:var(--wrong-soft); color:var(--wrong);}
+
+  .roundcard{display:flex; align-items:center; justify-content:space-between; gap:12px; padding:14px 4px; border-bottom:1px solid var(--line);}
+  .roundcard:last-child{border-bottom:none;}
+  .roundcard .rl{font-weight:700; font-size:14px;}
+  .roundcard .rr{font-size:12px; color:var(--ink-soft); font-family:'IBM Plex Mono',monospace;}
+
+  .stats-grid{display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:6px;}
+  .stat-box{background:var(--paper); border-radius:10px; padding:12px; text-align:center;}
+  .stat-box .n{font-family:'IBM Plex Mono',monospace; font-weight:700; font-size:19px;}
+  .stat-box .l{font-size:11px; color:var(--ink-soft); margin-top:2px;}
+
+  .quizcard{background:var(--card); border:1px solid var(--line); border-radius:16px; overflow:hidden;}
+  .qtop{display:flex; justify-content:space-between; align-items:center; padding:14px 22px 0; font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--ink-soft);}
+  .progress-track{height:6px; background:#EEF0F4; border-radius:99px; margin:10px 22px 0; overflow:hidden;}
+  .progress-fill{height:100%; background:var(--sky); border-radius:99px; transition:width .25s ease;}
+  .qbody{padding:30px 26px 10px; text-align:center;}
+  .qword{font-family:'Source Serif 4',serif; font-weight:700; font-size:36px;}
+  .options{display:grid; grid-template-columns:1fr 1fr; gap:10px; padding:18px 22px 22px;}
+  .opt{display:flex; align-items:center; gap:10px; text-align:left; padding:14px; border-radius:12px; border:1.5px solid var(--line); background:#fff; cursor:pointer; font-size:14px; line-height:1.4; color:var(--ink);}
+  .opt .num{font-family:'IBM Plex Mono',monospace; font-weight:700; font-size:15px; color:var(--ink-soft); flex-shrink:0; width:22px; text-align:center;}
+  .opt.correct{border-color:var(--correct); background:var(--correct-soft);}
+  .opt.correct .num{color:var(--correct);}
+  .opt.wrong{border-color:var(--wrong); background:var(--wrong-soft);}
+  .opt.wrong .num{color:var(--wrong);}
+  .opt.disabled{cursor:default;}
+  .opt.dim{opacity:.5;}
+  .qfooter{display:flex; justify-content:flex-end; gap:8px; padding:0 22px 22px;}
+
+  .result-ring{width:120px; height:120px; border-radius:50%; margin:0 auto 12px; display:flex; align-items:center; justify-content:center; background:conic-gradient(var(--correct) calc(var(--pct,0)*1%), #EEF0F4 0); position:relative;}
+  .result-ring::before{content:''; position:absolute; inset:9px; background:var(--card); border-radius:50%;}
+  .result-ring span{position:relative; font-family:'IBM Plex Mono',monospace; font-weight:700; font-size:24px;}
+
+  .center{text-align:center;}
+  .login-wrap{max-width:380px; margin:60px auto 0;}
+  .login-wrap h1{font-family:'Source Serif 4',serif; text-align:center; font-size:24px; margin-bottom:4px;}
+  .login-wrap .sub{text-align:center; color:var(--ink-soft); font-size:13px; margin-bottom:22px;}
+  .roletabs{display:flex; gap:8px; margin-bottom:16px;}
+  .roletab{flex:1; text-align:center; padding:10px; border-radius:9px; border:1.5px solid var(--line); cursor:pointer; font-weight:700; font-size:13px; color:var(--ink-soft);}
+  .roletab.active{border-color:var(--ink); color:var(--ink); background:var(--paper);}
+  .subtabs{display:flex; gap:6px; margin-bottom:14px; flex-wrap:wrap;}
+  .subtab{padding:7px 13px; border-radius:99px; border:1.5px solid var(--line); cursor:pointer; font-weight:600; font-size:12.5px; color:var(--ink-soft); background:#fff;}
+  .subtab.active{border-color:var(--sky); color:var(--sky-text); background:var(--sky-soft);}
+  .rank-num{font-family:'IBM Plex Mono',monospace; font-weight:700;}
+  .rank-1{color:var(--sky-text);}
+  .spinner{display:inline-block; width:14px; height:14px; border:2px solid var(--line); border-top-color:var(--ink); border-radius:50%; animation:spin .6s linear infinite;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  .loading{text-align:center; padding:40px; color:var(--ink-soft);}
+  footer.note{text-align:center; font-size:11px; color:var(--ink-soft); margin-top:22px; line-height:1.6;}
+  .notdone-row{background:var(--wrong-soft);}
+  @media (max-width:480px){
+    .qword{font-size:26px;}
+    .options{grid-template-columns:1fr;}
+    .stats-grid{grid-template-columns:repeat(2,1fr);}
+  }
+</style>
+</head>
+<body>
+<div class="app" id="app"></div>
+
+<script>
+/* ===================== API 서버 주소 =====================
+ * Apps Script를 "배포 > 새 배포 > 웹 앱"으로 배포한 뒤 나오는 exec URL을 여기 붙여넣으세요.
+ * (배포 시 "액세스 권한: 모든 사용자"로 설정해야 GitHub Pages 등 외부에서 fetch가 가능합니다.)
+ */
+const API_URL = 'https://script.google.com/macros/s/AKfycbwDvOe24npMbZGynsYhoW-tp7fQUm5HJQV5rb8N-jDO1U-fUgwcVN68N2YXxL4A3jmTAg/exec';
+
+/* ===================== 상태 ===================== */
+const state = {
+  role: null,        // 'student' | 'teacher'
+  user: null,        // {id,name,class,number} or {id,name,role,class}
+  token: null,        // 로그인 시 서버가 발급하는 세션 토큰
+  tab: null,
+  quiz: null,
+  loading: false,
+};
+
+function el(tag, cls, html){ const e=document.createElement(tag); if(cls) e.className=cls; if(html!==undefined) e.innerHTML=html; return e; }
+function qs(sel, root){ return (root||document).querySelector(sel); }
+
+/**
+ * action: 서버 라우터가 처리할 액션 이름 (예: 'studentLogin')
+ * params: {id, pw, round, answers, ...} 같은 요청 데이터. token은 자동으로 붙습니다.
+ *
+ * Content-Type을 text/plain으로 보내는 이유: application/json으로 보내면 브라우저가
+ * CORS preflight(OPTIONS)를 먼저 보내는데, Apps Script 웹앱은 OPTIONS에 정상 응답할 수
+ * 없어 요청이 막힙니다. text/plain은 "단순 요청"으로 분류되어 preflight 없이 바로 처리됩니다.
+ */
+async function call(action, params){
+  const body = Object.assign({ action: action }, params || {});
+  if(state.token) body.token = state.token;
+  let res;
+  try{
+    res = await fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(body)
+    });
+  }catch(err){
+    return { ok:false, message:'서버에 연결할 수 없습니다. 네트워크 상태를 확인해주세요.' };
+  }
+  let data;
+  try{ data = await res.json(); }
+  catch(err){ return { ok:false, message:'서버 응답을 해석할 수 없습니다.' }; }
+
+  if(!data.ok && /세션이 만료|로그인이 필요/.test(data.message||'')){
+    // 세션 만료 시 자동 로그아웃 처리
+    logout();
+  }
+  return data;
+}
+
+function restoreSession(){
+  try{
+    const raw = sessionStorage.getItem('vocabSession');
+    if(raw){
+      const s = JSON.parse(raw);
+      state.role = s.role; state.user = s.user; state.token = s.token;
+    }
+  }catch(e){}
+}
+function saveSession(){
+  try{ sessionStorage.setItem('vocabSession', JSON.stringify({role:state.role, user:state.user, token:state.token})); }catch(e){}
+}
+function clearSession(){
+  try{ sessionStorage.removeItem('vocabSession'); }catch(e){}
+}
+
+/* ===================== 렌더 라우터 ===================== */
+function render(){
+  if(!state.role){ renderLogin(); return; }
+  if(state.role==='student') renderStudent();
+  else renderTeacher();
+}
+
+/* ===================== 로그인 ===================== */
+let loginRole = 'student';
+function renderLogin(){
+  const app = document.getElementById('app');
+  app.innerHTML = '';
+  const wrap = el('div','login-wrap');
+  wrap.appendChild(el('h1', null, '단어 시험'));
+  wrap.appendChild(el('div','sub', '인천하늘고 어휘 학습 프로그램'));
+
+  const tabs = el('div','roletabs');
+  const stTab = el('div','roletab'+(loginRole==='student'?' active':''), '학생');
+  const teTab = el('div','roletab'+(loginRole==='teacher'?' active':''), '교사');
+  stTab.onclick = ()=>{ loginRole='student'; renderLogin(); };
+  teTab.onclick = ()=>{ loginRole='teacher'; renderLogin(); };
+  tabs.appendChild(stTab); tabs.appendChild(teTab);
+  wrap.appendChild(tabs);
+
+  const panel = el('div','panel');
+  const idField = el('div','field');
+  idField.innerHTML = `<label>아이디</label><input id="loginId" autocomplete="username">`;
+  const pwField = el('div','field');
+  pwField.innerHTML = `<label>비밀번호</label><input id="loginPw" type="password" autocomplete="current-password">`;
+  panel.appendChild(idField); panel.appendChild(pwField);
+  const errBox = el('div','error','');
+  panel.appendChild(errBox);
+  const btn = el('button','btn btn-primary btn-block', '로그인');
+  btn.style.marginTop='12px';
+  btn.onclick = async ()=>{
+    const id = qs('#loginId').value.trim();
+    const pw = qs('#loginPw').value;
+    if(!id||!pw){ errBox.textContent='아이디와 비밀번호를 입력하세요.'; return; }
+    btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> 확인 중';
+    try{
+      const res = loginRole==='student' ? await call('studentLogin', {id, pw}) : await call('teacherLogin', {id, pw});
+      if(!res.ok){ errBox.textContent = res.message; btn.disabled=false; btn.textContent='로그인'; return; }
+      state.token = res.token;
+      if(loginRole==='student'){ state.role='student'; state.user=res.student; state.tab='home'; }
+      else{ state.role='teacher'; state.user=res.teacher; state.tab='status'; }
+      saveSession();
+      render();
+    }catch(err){
+      errBox.textContent = '오류가 발생했습니다: '+err;
+      btn.disabled=false; btn.textContent='로그인';
+    }
+  };
+  panel.appendChild(btn);
+  wrap.appendChild(panel);
+  wrap.appendChild(el('footer','note','비밀번호를 잊으셨다면 담임 선생님께 문의하세요.'));
+  app.appendChild(wrap);
+
+  qs('#loginPw').addEventListener('keydown', e=>{ if(e.key==='Enter') btn.click(); });
+}
+
+function logout(){
+  const tokenToRevoke = state.token;
+  state.role=null; state.user=null; state.token=null; state.tab=null; clearSession(); render();
+  if(tokenToRevoke){
+    // 화면 전환을 기다릴 필요 없이 서버 세션만 백그라운드로 정리
+    fetch(API_URL, {
+      method:'POST',
+      headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body: JSON.stringify({ action:'logout', token: tokenToRevoke })
+    }).catch(()=>{});
+  }
+}
+
+/* ===================== 공통 헤더 ===================== */
+function headerBlock(title, tabs){
+  const header = el('header','top');
+  const nameLabel = state.role==='student'
+    ? `${state.user.class}반 ${state.user.number}번 ${state.user.name}`
+    : (state.user.role==='admin' ? '관리자' : `${state.user.name} 선생님 (${state.user.class}반 담임)`);
+  header.innerHTML = `<h1>${title}</h1>`;
+  const who = el('div','whoami');
+  who.innerHTML = `<span class="pill">${nameLabel}</span>`;
+  const logoutBtn = el('button','btn btn-ghost btn-sm','로그아웃');
+  logoutBtn.onclick = logout;
+  who.appendChild(logoutBtn);
+  header.appendChild(who);
+  const nav = el('div','navtabs');
+  tabs.forEach(([key,label])=>{
+    const t = el('div','navtab'+(state.tab===key?' active':''), label);
+    t.onclick = ()=>{ state.tab=key; render(); };
+    nav.appendChild(t);
+  });
+  return {header, nav};
+}
+
+/* ===================== 학생 화면 ===================== */
+async function renderStudent(){
+  const app = document.getElementById('app');
+  app.innerHTML = '';
+  const {header, nav} = headerBlock('단어 시험', [
+    ['home','시험 목록'], ['wrong','오답노트'], ['history','기록'], ['settings','설정']
+  ]);
+  app.appendChild(header);
+  app.appendChild(nav);
+
+  const body = el('div');
+  app.appendChild(body);
+  body.innerHTML = '<div class="loading"><span class="spinner"></span> 불러오는 중...</div>';
+
+  if(state.tab==='home') await renderStudentHome(body);
+  else if(state.tab==='wrong') await renderStudentWrong(body);
+  else if(state.tab==='history') await renderStudentHistory(body);
+  else if(state.tab==='settings') renderStudentSettings(body);
+}
+
+async function renderStudentHome(body){
+  const res = await call('getStudentDashboard', {});
+  body.innerHTML = '';
+  if(!res.ok){ body.appendChild(el('div','panel error', res.message)); return; }
+
+  if(state.user.mustChangePw){
+    const notice = el('div','panel');
+    notice.style.borderColor = 'var(--sky)';
+    notice.innerHTML = `<div style="font-weight:700;margin-bottom:4px;">비밀번호를 변경해주세요</div>
+      <div class="hint">선생님이 배포한 초기 비밀번호를 사용 중이에요. [설정] 탭에서 바꿀 수 있어요.</div>`;
+    body.appendChild(notice);
+  }
+
+  const panel = el('div','panel');
+  panel.appendChild(el('h2', null, `시험 목록 <span class="badge" style="background:var(--wrong-soft);color:var(--wrong);">오답노트 ${res.wrongCount}개</span>`));
+  if(res.rounds.length===0){
+    panel.appendChild(el('div','hint','아직 등록된 회차가 없어요. 선생님이 진도표를 등록하면 여기에 표시돼요.'));
+  }
+  res.rounds.forEach(r=>{
+    const row = el('div','roundcard');
+    const badgeMap = {done:['badge-done','완료'], available:['badge-available','응시 가능'], upcoming:['badge-upcoming','예정'], overdue:['badge-overdue','기한 초과']};
+    const [cls,label] = badgeMap[r.status];
+    const left = el('div');
+    left.innerHTML = `<div class="rl">${r.label || ('회차 '+r.round)} <span class="badge ${cls}">${label}</span></div>
+      <div class="rr">Day ${r.dayStart}~${r.dayEnd} · ${r.openDate} ~ ${r.dueDate}${r.status==='done' ? ' · '+r.score+'/'+r.total+'점' : ''}</div>`;
+    row.appendChild(left);
+    if(r.status==='available' || r.status==='overdue'){
+      const startBtn = el('button','btn btn-teal btn-sm', '응시하기');
+      startBtn.onclick = ()=> startTest(r.round);
+      row.appendChild(startBtn);
+    }
+    panel.appendChild(row);
+  });
+  body.appendChild(panel);
+}
+
+async function startTest(round){
+  const app = document.getElementById('app');
+  app.innerHTML = '<div class="loading"><span class="spinner"></span> 문제를 불러오는 중...</div>';
+  const res = await call('getRoundQuestions', {round});
+  if(!res.ok){ alert(res.message); state.tab='home'; render(); return; }
+  if(res.alreadyDone){ alert('이미 응시한 회차입니다. (점수 '+res.score+'/'+res.total+')'); state.tab='home'; render(); return; }
+  state.quiz = { round: round, questions: res.questions, idx:0, correctCount:0, answers:[], wrongList:[] };
+  renderQuizQuestion();
+}
+
+function renderQuizQuestion(){
+  const app = document.getElementById('app');
+  app.innerHTML = '';
+  const quiz = state.quiz;
+  const q = quiz.questions[quiz.idx];
+
+  const header = el('header','top');
+  header.innerHTML = `<h1>단어 시험</h1><div class="sub">정답 ${quiz.correctCount} · 오답 ${quiz.idx-quiz.correctCount}</div>`;
+  app.appendChild(header);
+
+  const card = el('div','quizcard');
+  const qtop = el('div','qtop');
+  qtop.innerHTML = `<span>Q ${quiz.idx+1} / ${quiz.questions.length}</span>`;
+  card.appendChild(qtop);
+  const track = el('div','progress-track');
+  const fill = el('div','progress-fill'); fill.style.width = (quiz.idx/quiz.questions.length*100)+'%';
+  track.appendChild(fill); card.appendChild(track);
+
+  const qbody = el('div','qbody');
+  qbody.innerHTML = `<div class="qword">${q.word}</div>`;
+  card.appendChild(qbody);
+
+  const opts = el('div','options');
+  const circled = ['①','②','③','④'];
+  q.options.forEach((opt,i)=>{
+    const btn = el('div','opt');
+    btn.innerHTML = `<span class="num">${circled[i]}</span><span>${opt.meaning}</span>`;
+    if(!q.answered){
+      btn.onclick = ()=>answerQuiz(opt);
+    } else {
+      btn.classList.add('disabled');
+      if(opt.id===q.id) btn.classList.add('correct');
+      else if(q.picked && opt.id===q.picked.id) btn.classList.add('wrong');
+      else btn.classList.add('dim');
+    }
+    opts.appendChild(btn);
+  });
+  card.appendChild(opts);
+
+  const foot = el('div','qfooter');
+  if(q.answered){
+    const nextBtn = el('button','btn btn-primary', quiz.idx===quiz.questions.length-1 ? '결과 제출하기' : '다음 문제 →');
+    nextBtn.onclick = nextQuiz;
+    foot.appendChild(nextBtn);
+  }
+  card.appendChild(foot);
+  app.appendChild(card);
+}
+
+function answerQuiz(opt){
+  const quiz = state.quiz;
+  const q = quiz.questions[quiz.idx];
+  if(q.answered) return;
+  q.answered = true; q.picked = opt;
+  const correct = opt.id===q.id;
+  if(correct) quiz.correctCount++;
+  quiz.answers.push({questionId:q.id, chosenId:opt.id});
+  renderQuizQuestion();
+}
+
+async function nextQuiz(){
+  const quiz = state.quiz;
+  if(quiz.idx < quiz.questions.length-1){ quiz.idx++; renderQuizQuestion(); return; }
+
+  const app = document.getElementById('app');
+  app.innerHTML = '<div class="loading"><span class="spinner"></span> 채점 중...</div>';
+  const res = await call('submitRoundResult', {round: quiz.round, answers: quiz.answers});
+  if(!res.ok){ alert(res.message); state.tab='home'; render(); return; }
+  renderQuizResult(res);
+}
+
+function renderQuizResult(res){
+  const app = document.getElementById('app');
+  app.innerHTML = '';
+  const pct = Math.round(res.score/res.total*100);
+  const header = el('header','top'); header.innerHTML = '<h1>결과</h1>';
+  app.appendChild(header);
+
+  const panel = el('div','panel center');
+  panel.innerHTML = `<div class="result-ring" style="--pct:${pct}"><span>${pct}%</span></div>
+    <div style="font-family:'IBM Plex Mono',monospace;font-size:15px;"><b>${res.score}</b> / ${res.total} 정답</div>`;
+  app.appendChild(panel);
+
+  if(res.wrongList.length>0){
+    const wp = el('div','panel');
+    wp.appendChild(el('h2', null, `틀린 단어 <span class="badge badge-overdue">${res.wrongList.length}개</span>`));
+    res.wrongList.forEach(w=>{
+      const row = el('div','roundcard');
+      row.innerHTML = `<div><div class="rl" style="font-family:'Source Serif 4',serif;">${w.word}</div><div class="rr">${w.meaning}</div></div>`;
+      wp.appendChild(row);
+    });
+    wp.appendChild(el('div','hint','오답노트에 자동 저장되었어요. [오답노트] 탭에서 복습할 수 있어요.'));
+    app.appendChild(wp);
+  }
+
+  const homeBtn = el('button','btn btn-primary btn-block','시험 목록으로');
+  homeBtn.onclick = ()=>{ state.tab='home'; render(); };
+  app.appendChild(homeBtn);
+}
+
+async function renderStudentWrong(body){
+  const res = await call('getWrongNotes', {});
+  body.innerHTML = '';
+  const panel = el('div','panel');
+  panel.appendChild(el('h2', null, `오답노트 <span class="badge badge-overdue">${res.notes.length}개</span>`));
+  if(res.notes.length===0){
+    panel.appendChild(el('div','hint','아직 저장된 오답이 없어요.'));
+  } else {
+    res.notes.forEach(n=>{
+      const row = el('div','roundcard');
+      const left = el('div');
+      left.innerHTML = `<div class="rl" style="font-family:'Source Serif 4',serif;">${n.word}</div>
+        <div class="rr">${n.meaning} · Day ${n.day} · ${n.missCount}회 틀림</div>`;
+      row.appendChild(left);
+      const doneBtn = el('button','btn btn-ghost btn-sm','복습 완료');
+      doneBtn.onclick = async ()=>{ await call('removeWrongNote', {wordId: n.wordId}); renderStudentWrong(body); };
+      row.appendChild(doneBtn);
+      panel.appendChild(row);
+    });
+  }
+  body.appendChild(panel);
+}
+
+async function renderStudentHistory(body){
+  const res = await call('getStudentHistory', {});
+  body.innerHTML = '';
+  const panel = el('div','panel');
+  panel.appendChild(el('h2', null, '응시 기록'));
+  if(res.history.length===0){
+    panel.appendChild(el('div','hint','아직 응시한 시험이 없어요.'));
+  } else {
+    const table = el('table');
+    table.innerHTML = '<tr><th>회차</th><th>제출일시</th><th>점수</th><th></th></tr>';
+    res.history.forEach(h=>{
+      const tr = el('tr');
+      tr.innerHTML = `<td>${h.label||('회차 '+h.round)}</td><td>${h.submittedAt}</td><td>${h.score}/${h.total}</td><td>${h.late?'<span class="badge badge-overdue">기한초과 제출</span>':''}</td>`;
+      table.appendChild(tr);
+    });
+    panel.appendChild(table);
+  }
+  body.appendChild(panel);
+}
+
+function renderStudentSettings(body){
+  body.innerHTML = '';
+  const panel = el('div','panel');
+  panel.appendChild(el('h2', null, '비밀번호 변경'));
+  const row1 = el('div','row');
+  row1.innerHTML = `<div class="field"><label>현재 비밀번호</label><input id="oldPw" type="password"></div>`;
+  const row2 = el('div','row');
+  row2.innerHTML = `<div class="field"><label>새 비밀번호</label><input id="newPw" type="password"></div>
+    <div class="field"><label>새 비밀번호 확인</label><input id="newPw2" type="password"></div>`;
+  panel.appendChild(row1); panel.appendChild(row2);
+  const msg = el('div','', '');
+  panel.appendChild(msg);
+  const btn = el('button','btn btn-primary','비밀번호 변경');
+  btn.onclick = async ()=>{
+    const oldPw = qs('#oldPw',panel).value, newPw = qs('#newPw',panel).value, newPw2 = qs('#newPw2',panel).value;
+    if(newPw !== newPw2){ msg.innerHTML = '<div class="error">새 비밀번호가 일치하지 않습니다.</div>'; return; }
+    const res = await call('changeStudentPassword', {oldPw, newPw});
+    if(res.ok){
+      msg.innerHTML = '<div class="success">'+res.message+'</div>';
+      state.user.mustChangePw = false; saveSession();
+    } else msg.innerHTML = '<div class="error">'+res.message+'</div>';
+  };
+  panel.appendChild(btn);
+  body.appendChild(panel);
+}
+
+/* ===================== 교사 화면 ===================== */
+async function renderTeacher(){
+  const app = document.getElementById('app');
+  app.innerHTML = '';
+  const tabs = [['status','회차 현황'], ['overall','전체 현황'], ['leaderboard','우수 학생'], ['schedule','진도표 관리'], ['students','학생 관리'], ['settings','설정']];
+  const {header, nav} = headerBlock('단어 시험 관리', tabs);
+  app.appendChild(header);
+  app.appendChild(nav);
+  const body = el('div');
+  app.appendChild(body);
+  body.innerHTML = '<div class="loading"><span class="spinner"></span> 불러오는 중...</div>';
+
+  if(state.tab==='status') await renderTeacherStatus(body);
+  else if(state.tab==='overall') await renderTeacherOverall(body);
+  else if(state.tab==='leaderboard') await renderTeacherLeaderboard(body);
+  else if(state.tab==='schedule') await renderTeacherSchedule(body);
+  else if(state.tab==='students') await renderTeacherStudents(body);
+  else if(state.tab==='settings') renderTeacherSettings(body);
+}
+
+let selectedRound = null;
+async function renderTeacherStatus(body){
+  const roundsRes = await call('listRounds', {});
+  body.innerHTML = '';
+  const panel = el('div','panel');
+  panel.appendChild(el('h2', null, '회차 선택'));
+  if(roundsRes.rounds.length===0){
+    panel.appendChild(el('div','hint','등록된 회차가 없어요. [진도표 관리] 탭에서 먼저 등록하세요.'));
+    body.appendChild(panel);
+    return;
+  }
+  if(!selectedRound) selectedRound = roundsRes.rounds[roundsRes.rounds.length-1].round;
+  const sel = el('select');
+  roundsRes.rounds.forEach(r=>{
+    const o = el('option', null, (r.label||('회차 '+r.round)) + ` (Day ${r.dayStart}~${r.dayEnd})`);
+    o.value = r.round;
+    if(String(r.round)===String(selectedRound)) o.selected = true;
+    sel.appendChild(o);
+  });
+  sel.onchange = e=>{ selectedRound = e.target.value; renderTeacherStatus(body); };
+  panel.appendChild(sel);
+  body.appendChild(panel);
+
+  const res = await call('getRoundStatus', {round: selectedRound});
+  if(!res.ok){ body.appendChild(el('div','panel error', res.message)); return; }
+
+  const statsPanel = el('div','panel');
+  const grid = el('div','stats-grid');
+  grid.innerHTML = `
+    <div class="stat-box"><div class="n">${res.summary.totalStudents}</div><div class="l">전체 인원</div></div>
+    <div class="stat-box"><div class="n" style="color:var(--correct)">${res.summary.completedCount}</div><div class="l">완료</div></div>
+    <div class="stat-box"><div class="n" style="color:var(--wrong)">${res.notDone.length}</div><div class="l">미응시</div></div>
+    <div class="stat-box"><div class="n">${res.summary.avgScore}</div><div class="l">평균 점수</div></div>`;
+  statsPanel.appendChild(grid);
+  statsPanel.appendChild(el('div','hint',`완료율 ${res.summary.completionRate}%`));
+  body.appendChild(statsPanel);
+
+  const notDonePanel = el('div','panel');
+  notDonePanel.appendChild(el('h2', null, `미응시 학생 (밀리고 있는 학생) <span class="badge badge-overdue">${res.notDone.length}명</span>`));
+  if(res.notDone.length===0){
+    notDonePanel.appendChild(el('div','hint','전원 응시 완료했어요. 👏'));
+  } else {
+    const table = el('table');
+    table.innerHTML = '<tr><th>반</th><th>번호</th><th>이름</th><th></th></tr>';
+    res.notDone.forEach(s=>{
+      const tr = el('tr','notdone-row');
+      const retakeCell = state.user.role==='admin' ? '' : '';
+      tr.innerHTML = `<td>${s.class}</td><td>${s.number}</td><td>${s.name}</td><td></td>`;
+      table.appendChild(tr);
+    });
+    notDonePanel.appendChild(table);
+  }
+  body.appendChild(notDonePanel);
+
+  const donePanel = el('div','panel');
+  donePanel.appendChild(el('h2', null, '완료 학생'));
+  if(res.completed.length===0){
+    donePanel.appendChild(el('div','hint','아직 완료한 학생이 없어요.'));
+  } else {
+    const table = el('table');
+    table.innerHTML = '<tr><th>반</th><th>번호</th><th>이름</th><th>점수</th><th>제출시각</th><th></th></tr>';
+    res.completed.forEach(s=>{
+      const tr = el('tr');
+      const td = el('td');
+      const retakeBtn = el('button','btn btn-ghost btn-sm','재응시 허용');
+      retakeBtn.onclick = async ()=>{
+        if(!confirm(`${s.name} 학생의 이번 회차 결과를 삭제하고 재응시를 허용할까요?`)) return;
+        const r = await call('allowRetake', {studentId: s.id, round: selectedRound});
+        if(r.ok) renderTeacherStatus(body);
+        else alert(r.message);
+      };
+      td.appendChild(retakeBtn);
+      tr.innerHTML = `<td>${s.class}</td><td>${s.number}</td><td>${s.name}</td><td>${s.score}/${s.total}${s.late?' <span class="badge badge-overdue">지각제출</span>':''}</td><td>${s.submittedAt}</td>`;
+      tr.appendChild(td);
+      table.appendChild(tr);
+    });
+    donePanel.appendChild(table);
+  }
+  body.appendChild(donePanel);
+}
+
+async function renderTeacherOverall(body){
+  const res = await call('getOverallStatus', {});
+  body.innerHTML = '';
+  const panel = el('div','panel');
+  panel.appendChild(el('h2', null, '회차별 전체 현황'));
+  if(!res.ok){ panel.appendChild(el('div','error', res.message)); body.appendChild(panel); return; }
+  if(res.table.length===0){
+    panel.appendChild(el('div','hint','등록된 회차가 없어요.'));
+  } else {
+    const table = el('table');
+    table.innerHTML = '<tr><th>회차</th><th>마감일</th><th>완료</th><th>완료율</th><th>평균점수</th></tr>';
+    res.table.forEach(r=>{
+      const tr = el('tr');
+      tr.innerHTML = `<td>${r.label||('회차 '+r.round)}</td><td>${r.dueDate}</td><td>${r.completedCount}/${r.totalStudents}</td><td>${r.completionRate}%</td><td>${r.avgScore}</td>`;
+      table.appendChild(tr);
+    });
+    panel.appendChild(table);
+  }
+  body.appendChild(panel);
+}
+
+let leaderboardMode = 'accuracy';
+async function renderTeacherLeaderboard(body){
+  const res = await call('getLeaderboard', {limit: 500});
+  body.innerHTML = '';
+  const panel = el('div','panel');
+  panel.appendChild(el('h2', null, '우수 학생'));
+
+  const modes = [
+    ['accuracy','정답률 순위'],
+    ['attempts','진도 순위 (응시 횟수)'],
+    ['correct','총점 순위 (누적 맞힌 개수)']
+  ];
+  const subtabs = el('div','subtabs');
+  modes.forEach(([key,label])=>{
+    const t = el('div','subtab'+(leaderboardMode===key?' active':''), label);
+    t.onclick = ()=>{ leaderboardMode = key; renderTeacherLeaderboard(body); };
+    subtabs.appendChild(t);
+  });
+  panel.appendChild(subtabs);
+
+  if(!res.ok){ panel.appendChild(el('div','error', res.message)); body.appendChild(panel); return; }
+  if(res.leaderboard.length===0){
+    panel.appendChild(el('div','hint','아직 응시 기록이 없어요.'));
+  } else {
+    const rows = res.leaderboard.slice();
+    if(leaderboardMode==='accuracy') rows.sort((a,b)=> b.accuracy-a.accuracy || b.perfects-a.perfects);
+    else if(leaderboardMode==='attempts') rows.sort((a,b)=> b.attempts-a.attempts || b.accuracy-a.accuracy);
+    else rows.sort((a,b)=> b.correct-a.correct || b.accuracy-a.accuracy);
+
+    const headMap = {
+      accuracy: '평균 정답률',
+      attempts: '응시 횟수',
+      correct: '누적 맞힌 개수'
+    };
+    const table = el('table');
+    table.innerHTML = `<tr><th>순위</th><th>반</th><th>번호</th><th>이름</th><th>${headMap[leaderboardMode]}</th><th>평균 정답률</th><th>응시 횟수</th><th>만점 횟수</th></tr>`;
+    rows.forEach((s,i)=>{
+      const tr = el('tr');
+      const rankCell = `<span class="rank-num${i===0?' rank-1':''}">${i+1}</span>`;
+      const highlight = leaderboardMode==='accuracy' ? s.accuracy+'%' : leaderboardMode==='attempts' ? s.attempts+'회' : s.correct+'개';
+      tr.innerHTML = `<td>${rankCell}</td><td>${s.class}</td><td>${s.number}</td><td>${s.name}</td><td><b>${highlight}</b></td><td>${s.accuracy}%</td><td>${s.attempts}</td><td>${s.perfects}</td>`;
+      table.appendChild(tr);
+    });
+    panel.appendChild(table);
+    panel.appendChild(el('div','hint','진도 순위는 지금까지 응시를 완료한 회차 수, 총점 순위는 지금까지 맞힌 문제 수의 누적 합계 기준이에요.'));
+  }
+  body.appendChild(panel);
+}
+
+async function renderTeacherSchedule(body){
+  const res = await call('listRounds', {});
+  body.innerHTML = '';
+  const isAdmin = state.user.role==='admin';
+
+  if(isAdmin){
+    const formPanel = el('div','panel');
+    formPanel.appendChild(el('h2', null, '회차 추가 / 수정'));
+    const row1 = el('div','row');
+    row1.innerHTML = `
+      <div class="field"><label>회차 번호</label><input id="f_round" type="number"></div>
+      <div class="field"><label>제목</label><input id="f_label" placeholder="예: 1주차 1회차"></div>`;
+    const row2 = el('div','row');
+    row2.innerHTML = `
+      <div class="field"><label>Day 시작</label><input id="f_dayStart" type="number"></div>
+      <div class="field"><label>Day 끝</label><input id="f_dayEnd" type="number"></div>`;
+    const row3 = el('div','row');
+    row3.innerHTML = `
+      <div class="field"><label>시작일</label><input id="f_openDate" type="date"></div>
+      <div class="field"><label>마감일</label><input id="f_dueDate" type="date"></div>`;
+    formPanel.appendChild(row1); formPanel.appendChild(row2); formPanel.appendChild(row3);
+    const msg = el('div','','');
+    formPanel.appendChild(msg);
+    const saveBtn = el('button','btn btn-primary','저장');
+    saveBtn.onclick = async ()=>{
+      const round = {
+        round: qs('#f_round',formPanel).value, label: qs('#f_label',formPanel).value,
+        dayStart: qs('#f_dayStart',formPanel).value, dayEnd: qs('#f_dayEnd',formPanel).value,
+        openDate: qs('#f_openDate',formPanel).value, dueDate: qs('#f_dueDate',formPanel).value
+      };
+      if(!round.round || !round.dayStart || !round.dayEnd){ msg.innerHTML='<div class="error">회차 번호와 Day 범위는 필수입니다.</div>'; return; }
+      const r = await call('upsertRound', {round});
+      if(r.ok){ msg.innerHTML='<div class="success">'+r.message+'</div>'; renderTeacherSchedule(body); }
+      else msg.innerHTML='<div class="error">'+r.message+'</div>';
+    };
+    formPanel.appendChild(saveBtn);
+    body.appendChild(formPanel);
+  }
+
+  const listPanel = el('div','panel');
+  listPanel.appendChild(el('h2', null, '등록된 회차'));
+  if(res.rounds.length===0){
+    listPanel.appendChild(el('div','hint','등록된 회차가 없어요.'));
+  } else {
+    const table = el('table');
+    table.innerHTML = '<tr><th>회차</th><th>제목</th><th>Day</th><th>시작일</th><th>마감일</th>'+(isAdmin?'<th></th>':'')+'</tr>';
+    res.rounds.forEach(r=>{
+      const tr = el('tr');
+      let extra = '';
+      tr.innerHTML = `<td>${r.round}</td><td>${r.label||''}</td><td>${r.dayStart}~${r.dayEnd}</td><td>${r.openDate}</td><td>${r.dueDate}</td>`;
+      if(isAdmin){
+        const td = el('td');
+        const editBtn = el('button','btn btn-ghost btn-sm','수정');
+        editBtn.onclick = ()=>{
+          qs('#f_round').value=r.round; qs('#f_label').value=r.label||'';
+          qs('#f_dayStart').value=r.dayStart; qs('#f_dayEnd').value=r.dayEnd;
+          qs('#f_openDate').value=r.openDate; qs('#f_dueDate').value=r.dueDate;
+          window.scrollTo(0,0);
+        };
+        const delBtn = el('button','btn btn-ghost btn-sm','삭제');
+        delBtn.style.color='var(--wrong)';
+        delBtn.onclick = async ()=>{
+          if(!confirm('정말 삭제할까요?')) return;
+          await call('deleteRound', {round: r.round});
+          renderTeacherSchedule(body);
+        };
+        td.appendChild(editBtn); td.appendChild(delBtn);
+        tr.appendChild(td);
+      }
+      table.appendChild(tr);
+    });
+    listPanel.appendChild(table);
+  }
+  body.appendChild(listPanel);
+}
+
+async function renderTeacherStudents(body){
+  const res = await call('listStudents', {});
+  body.innerHTML = '';
+
+  const bulkPanel = el('div','panel');
+  bulkPanel.appendChild(el('h2', null, '학생 일괄 등록'));
+  bulkPanel.appendChild(el('div','hint','한 줄에 한 명씩, 탭으로 구분: 아이디, 이름, 반, 번호, 초기비밀번호<br>예) 10101(탭)홍길동(탭)1(탭)1(탭)1234'));
+  const ta = el('textarea');
+  ta.placeholder = '10101\t홍길동\t1\t1\t1234\n10102\t김철수\t1\t2\t1234';
+  bulkPanel.appendChild(ta);
+  const msg = el('div','','');
+  bulkPanel.appendChild(msg);
+  const addBtn = el('button','btn btn-primary','일괄 등록');
+  addBtn.onclick = async ()=>{
+    const r = await call('bulkAddStudents', {text: ta.value});
+    if(r.ok){ msg.innerHTML='<div class="success">'+r.message+'</div>'; renderTeacherStudents(body); }
+    else msg.innerHTML='<div class="error">'+r.message+'</div>';
+  };
+  bulkPanel.appendChild(addBtn);
+  body.appendChild(bulkPanel);
+
+  const listPanel = el('div','panel');
+  listPanel.appendChild(el('h2', null, `학생 목록 <span class="badge badge-done">${res.students.length}명</span>`));
+  if(res.students.length===0){
+    listPanel.appendChild(el('div','hint','등록된 학생이 없어요.'));
+  } else {
+    const table = el('table');
+    table.innerHTML = '<tr><th>반</th><th>번호</th><th>이름</th><th>아이디</th><th></th></tr>';
+    res.students.forEach(s=>{
+      const tr = el('tr');
+      const td = el('td');
+      const resetBtn = el('button','btn btn-ghost btn-sm','비번 초기화');
+      resetBtn.onclick = async ()=>{
+        if(!confirm(`${s.name} 학생의 비밀번호를 1234로 초기화할까요?`)) return;
+        const r = await call('resetStudentPassword', {studentId: s.id, newPw: '1234'});
+        alert(r.ok ? r.message : r.message);
+      };
+      td.appendChild(resetBtn);
+      tr.innerHTML = `<td>${s.class}</td><td>${s.number}</td><td>${s.name}</td><td>${s.id}</td>`;
+      tr.appendChild(td);
+      table.appendChild(tr);
+    });
+    listPanel.appendChild(table);
+  }
+  body.appendChild(listPanel);
+}
+
+function renderTeacherSettings(body){
+  body.innerHTML = '';
+  const panel = el('div','panel');
+  panel.appendChild(el('h2', null, '비밀번호 변경'));
+  const row1 = el('div','row');
+  row1.innerHTML = `<div class="field"><label>현재 비밀번호</label><input id="t_oldPw" type="password"></div>`;
+  const row2 = el('div','row');
+  row2.innerHTML = `<div class="field"><label>새 비밀번호</label><input id="t_newPw" type="password"></div>
+    <div class="field"><label>새 비밀번호 확인</label><input id="t_newPw2" type="password"></div>`;
+  panel.appendChild(row1); panel.appendChild(row2);
+  const msg = el('div','','');
+  panel.appendChild(msg);
+  const btn = el('button','btn btn-primary','비밀번호 변경');
+  btn.onclick = async ()=>{
+    const oldPw = qs('#t_oldPw',panel).value, newPw = qs('#t_newPw',panel).value, newPw2 = qs('#t_newPw2',panel).value;
+    if(newPw !== newPw2){ msg.innerHTML='<div class="error">새 비밀번호가 일치하지 않습니다.</div>'; return; }
+    const r = await call('changeTeacherPassword', {oldPw, newPw});
+    msg.innerHTML = r.ok ? '<div class="success">'+r.message+'</div>' : '<div class="error">'+r.message+'</div>';
+  };
+  panel.appendChild(btn);
+  body.appendChild(panel);
+}
+
+/* ===================== 시작 ===================== */
+restoreSession();
+render();
+</script>
+</body>
+</html>
