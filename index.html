@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
   :root{
     --paper:#EEF5FC; --card:#FFFFFF; --ink:#122A4D; --ink-soft:#5D7290; --line:#D4E2F0;
@@ -120,7 +121,7 @@
  * Apps Script를 "배포 > 새 배포 > 웹 앱"으로 배포한 뒤 나오는 exec URL을 여기 붙여넣으세요.
  * (배포 시 "액세스 권한: 모든 사용자"로 설정해야 GitHub Pages 등 외부에서 fetch가 가능합니다.)
  */
-const API_URL = 'https://script.google.com/macros/s/AKfycbwDvOe24npMbZGynsYhoW-tp7fQUm5HJQV5rb8N-jDO1U-fUgwcVN68N2YXxL4A3jmTAg/exec';
+const API_URL = 'https://script.google.com/macros/s/여기에_배포된_스크립트ID/exec';
 
 /* ===================== 상태 ===================== */
 const state = {
@@ -260,8 +261,8 @@ function logout(){
 function headerBlock(title, tabs){
   const header = el('header','top');
   const nameLabel = state.role==='student'
-    ? `${state.user.class}반 ${state.user.number}번 ${state.user.name}`
-    : (state.user.role==='admin' ? '관리자' : `${state.user.name} 선생님 (${state.user.class}반 담임)`);
+    ? `${state.user.grade}학년 ${state.user.class}반 ${state.user.number}번 ${state.user.name}`
+    : (state.user.role==='admin' ? '관리자' : `${state.user.name} 선생님 (${state.user.grade}학년 ${state.user.class}반 담임)`);
   header.innerHTML = `<h1>${title}</h1>`;
   const who = el('div','whoami');
   who.innerHTML = `<span class="pill">${nameLabel}</span>`;
@@ -576,11 +577,11 @@ async function renderTeacherStatus(body){
     notDonePanel.appendChild(el('div','hint','전원 응시 완료했어요. 👏'));
   } else {
     const table = el('table');
-    table.innerHTML = '<tr><th>반</th><th>번호</th><th>이름</th><th></th></tr>';
+    table.innerHTML = '<tr><th>학년</th><th>반</th><th>번호</th><th>이름</th><th></th></tr>';
     res.notDone.forEach(s=>{
       const tr = el('tr','notdone-row');
       const retakeCell = state.user.role==='admin' ? '' : '';
-      tr.innerHTML = `<td>${s.class}</td><td>${s.number}</td><td>${s.name}</td><td></td>`;
+      tr.innerHTML = `<td>${s.grade}</td><td>${s.class}</td><td>${s.number}</td><td>${s.name}</td><td></td>`;
       table.appendChild(tr);
     });
     notDonePanel.appendChild(table);
@@ -593,7 +594,7 @@ async function renderTeacherStatus(body){
     donePanel.appendChild(el('div','hint','아직 완료한 학생이 없어요.'));
   } else {
     const table = el('table');
-    table.innerHTML = '<tr><th>반</th><th>번호</th><th>이름</th><th>점수</th><th>제출시각</th><th></th></tr>';
+    table.innerHTML = '<tr><th>학년</th><th>반</th><th>번호</th><th>이름</th><th>점수</th><th>제출시각</th><th></th></tr>';
     res.completed.forEach(s=>{
       const tr = el('tr');
       const td = el('td');
@@ -605,7 +606,7 @@ async function renderTeacherStatus(body){
         else alert(r.message);
       };
       td.appendChild(retakeBtn);
-      tr.innerHTML = `<td>${s.class}</td><td>${s.number}</td><td>${s.name}</td><td>${s.score}/${s.total}${s.late?' <span class="badge badge-overdue">지각제출</span>':''}</td><td>${s.submittedAt}</td>`;
+      tr.innerHTML = `<td>${s.grade}</td><td>${s.class}</td><td>${s.number}</td><td>${s.name}</td><td>${s.score}/${s.total}${s.late?' <span class="badge badge-overdue">지각제출</span>':''}</td><td>${s.submittedAt}</td>`;
       tr.appendChild(td);
       table.appendChild(tr);
     });
@@ -670,12 +671,12 @@ async function renderTeacherLeaderboard(body){
       correct: '누적 맞힌 개수'
     };
     const table = el('table');
-    table.innerHTML = `<tr><th>순위</th><th>반</th><th>번호</th><th>이름</th><th>${headMap[leaderboardMode]}</th><th>평균 정답률</th><th>응시 횟수</th><th>만점 횟수</th></tr>`;
+    table.innerHTML = `<tr><th>순위</th><th>학년</th><th>반</th><th>번호</th><th>이름</th><th>${headMap[leaderboardMode]}</th><th>평균 정답률</th><th>응시 횟수</th><th>만점 횟수</th></tr>`;
     rows.forEach((s,i)=>{
       const tr = el('tr');
       const rankCell = `<span class="rank-num${i===0?' rank-1':''}">${i+1}</span>`;
       const highlight = leaderboardMode==='accuracy' ? s.accuracy+'%' : leaderboardMode==='attempts' ? s.attempts+'회' : s.correct+'개';
-      tr.innerHTML = `<td>${rankCell}</td><td>${s.class}</td><td>${s.number}</td><td>${s.name}</td><td><b>${highlight}</b></td><td>${s.accuracy}%</td><td>${s.attempts}</td><td>${s.perfects}</td>`;
+      tr.innerHTML = `<td>${rankCell}</td><td>${s.grade}</td><td>${s.class}</td><td>${s.number}</td><td>${s.name}</td><td><b>${highlight}</b></td><td>${s.accuracy}%</td><td>${s.attempts}</td><td>${s.perfects}</td>`;
       table.appendChild(tr);
     });
     panel.appendChild(table);
@@ -766,11 +767,43 @@ async function renderTeacherStudents(body){
 
   const bulkPanel = el('div','panel');
   bulkPanel.appendChild(el('h2', null, '학생 일괄 등록'));
-  bulkPanel.appendChild(el('div','hint','한 줄에 한 명씩, 탭으로 구분: 아이디, 이름, 반, 번호, 초기비밀번호<br>예) 10101(탭)홍길동(탭)1(탭)1(탭)1234'));
+  bulkPanel.appendChild(el('div','hint',
+    '두 가지 형식 중 편한 걸 쓰세요 (줄마다 자동으로 구분됩니다):<br>' +
+    '· <b>간편 등록</b>: 학년(탭)반(탭)번호(탭)이름 — 나이스 명렬표를 엑셀에서 그대로 복사해 붙여넣으면 됩니다. 아이디·초기비밀번호(1234)는 자동 생성돼요.<br>' +
+    '· <b>전체 지정</b>: 아이디(탭)이름(탭)학년(탭)반(탭)번호(탭)초기비밀번호<br>' +
+    '엑셀 파일(.xlsx/.csv)을 통째로 올려도 자동으로 읽어서 아래 칸에 채워줘요.'
+  ));
+
+  const fileRow = el('div','row');
+  fileRow.innerHTML = `<div class="field"><label>엑셀 파일에서 불러오기 (.xlsx, .xls, .csv)</label><input type="file" id="excelFile" accept=".xlsx,.xls,.csv"></div>`;
+  bulkPanel.appendChild(fileRow);
+
   const ta = el('textarea');
-  ta.placeholder = '10101\t홍길동\t1\t1\t1234\n10102\t김철수\t1\t2\t1234';
+  ta.placeholder = '[간편 등록 예시]\n1\t3\t7\t홍길동\n1\t3\t8\t김철수\n\n[전체 지정 예시]\n10307\t홍길동\t1\t3\t7\t1234';
   bulkPanel.appendChild(ta);
+
   const msg = el('div','','');
+
+  qs('#excelFile', fileRow).addEventListener('change', async (e)=>{
+    const file = e.target.files[0];
+    if(!file) return;
+    msg.innerHTML = '<span class="spinner"></span> 파일을 읽는 중...';
+    try{
+      const buf = await file.arrayBuffer();
+      const wb = XLSX.read(buf, { type: 'array' });
+      const sheetName = wb.SheetNames[0];
+      const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { header: 1, raw: false, defval: '' });
+      const lines = rows
+        .map(r => r.map(c => String(c).trim()))
+        .filter(r => r.some(c => c !== ''))
+        .map(r => r.join('\t'));
+      ta.value = lines.join('\n');
+      msg.innerHTML = `<div class="success">${lines.length}줄을 불러왔어요. 내용을 확인한 뒤 [일괄 등록]을 눌러주세요.</div>`;
+    }catch(err){
+      msg.innerHTML = '<div class="error">파일을 읽는 중 오류가 발생했어요: '+err.message+'</div>';
+    }
+  });
+
   bulkPanel.appendChild(msg);
   const addBtn = el('button','btn btn-primary','일괄 등록');
   addBtn.onclick = async ()=>{
@@ -787,7 +820,7 @@ async function renderTeacherStudents(body){
     listPanel.appendChild(el('div','hint','등록된 학생이 없어요.'));
   } else {
     const table = el('table');
-    table.innerHTML = '<tr><th>반</th><th>번호</th><th>이름</th><th>아이디</th><th></th></tr>';
+    table.innerHTML = '<tr><th>학년</th><th>반</th><th>번호</th><th>이름</th><th>아이디</th><th></th></tr>';
     res.students.forEach(s=>{
       const tr = el('tr');
       const td = el('td');
@@ -798,7 +831,7 @@ async function renderTeacherStudents(body){
         alert(r.ok ? r.message : r.message);
       };
       td.appendChild(resetBtn);
-      tr.innerHTML = `<td>${s.class}</td><td>${s.number}</td><td>${s.name}</td><td>${s.id}</td>`;
+      tr.innerHTML = `<td>${s.grade}</td><td>${s.class}</td><td>${s.number}</td><td>${s.name}</td><td>${s.id}</td>`;
       tr.appendChild(td);
       table.appendChild(tr);
     });
