@@ -518,7 +518,9 @@ function renderStudentSettings(body){
 async function renderTeacher(){
   const app = document.getElementById('app');
   app.innerHTML = '';
-  const tabs = [['status','회차 현황'], ['overall','전체 현황'], ['leaderboard','우수 학생'], ['schedule','진도표 관리'], ['students','학생 관리'], ['settings','설정']];
+  const tabs = [['status','회차 현황'], ['overall','전체 현황'], ['leaderboard','우수 학생'], ['schedule','진도표 관리'], ['students','학생 관리']];
+  if(state.user.role==='admin') tabs.push(['teachers','교사 계정']);
+  tabs.push(['settings','설정']);
   const {header, nav} = headerBlock('단어 시험 관리', tabs);
   app.appendChild(header);
   app.appendChild(nav);
@@ -531,6 +533,7 @@ async function renderTeacher(){
   else if(state.tab==='leaderboard') await renderTeacherLeaderboard(body);
   else if(state.tab==='schedule') await renderTeacherSchedule(body);
   else if(state.tab==='students') await renderTeacherStudents(body);
+  else if(state.tab==='teachers') await renderTeacherAccounts(body);
   else if(state.tab==='settings') renderTeacherSettings(body);
 }
 
@@ -691,8 +694,61 @@ async function renderTeacherSchedule(body){
   const isAdmin = state.user.role==='admin';
 
   if(isAdmin){
+    const autoPanel = el('div','panel');
+    autoPanel.style.borderColor = 'var(--sky)';
+    autoPanel.appendChild(el('h2', null, '진도표 자동 생성'));
+    autoPanel.appendChild(el('div','hint','전체 단어를 입력한 개수씩 묶어서 회차를 자동으로 만들어요. <b>기존 진도표는 전부 대체됩니다.</b>'));
+
+    const r1 = el('div','row');
+    r1.innerHTML = `
+      <div class="field"><label>하루(회차)당 단어 수</label><input id="ag_wordsPerChunk" type="number" placeholder="예: 20"></div>
+      <div class="field"><label>회차당 출제 문항 수</label><input id="ag_questionsPerRound" type="number" placeholder="예: 15"></div>`;
+    const r2 = el('div','row');
+    r2.innerHTML = `<div class="field"><label>시작일</label><input id="ag_startDate" type="date"></div>`;
+    autoPanel.appendChild(r1); autoPanel.appendChild(r2);
+
+    const wdWrap = el('div','field');
+    wdWrap.innerHTML = '<label>시험 요일 (1주일에 몇 번 볼지 요일로 선택)</label>';
+    const wdRow = el('div','row');
+    const wdNames = ['일','월','화','수','목','금','토'];
+    const wdBoxes = [];
+    wdNames.forEach((name, idx)=>{
+      const label = el('label');
+      label.style.cssText = 'display:flex;align-items:center;gap:4px;font-weight:600;color:var(--ink);min-width:auto;';
+      const cb = document.createElement('input');
+      cb.type = 'checkbox'; cb.value = String(idx); cb.style.width='auto';
+      if(idx===2 || idx===4) cb.checked = true; // 기본값: 화, 목
+      label.appendChild(cb);
+      label.appendChild(document.createTextNode(name));
+      wdBoxes.push(cb);
+      wdRow.appendChild(label);
+    });
+    wdWrap.appendChild(wdRow);
+    autoPanel.appendChild(wdWrap);
+
+    const agMsg = el('div','','');
+    autoPanel.appendChild(agMsg);
+    const genBtn = el('button','btn btn-teal','자동 생성');
+    genBtn.onclick = async ()=>{
+      const wordsPerChunk = qs('#ag_wordsPerChunk',autoPanel).value;
+      const questionsPerRound = qs('#ag_questionsPerRound',autoPanel).value;
+      const startDate = qs('#ag_startDate',autoPanel).value;
+      const weekdays = wdBoxes.filter(cb=>cb.checked).map(cb=>cb.value);
+      if(!wordsPerChunk || !questionsPerRound || !startDate || weekdays.length===0){
+        agMsg.innerHTML = '<div class="error">모든 항목을 입력해주세요.</div>'; return;
+      }
+      if(!confirm('기존 진도표를 전부 지우고 새로 생성합니다. 이미 학생들이 응시한 기록은 그대로 남지만, 진도표 자체는 새로 교체돼요. 계속할까요?')) return;
+      genBtn.disabled = true; genBtn.innerHTML = '<span class="spinner"></span> 생성 중...';
+      const r = await call('generateSchedule', {wordsPerChunk, questionsPerRound, startDate, weekdays});
+      genBtn.disabled = false; genBtn.textContent = '자동 생성';
+      if(r.ok){ agMsg.innerHTML = '<div class="success">'+r.message+'</div>'; renderTeacherSchedule(body); }
+      else agMsg.innerHTML = '<div class="error">'+r.message+'</div>';
+    };
+    autoPanel.appendChild(genBtn);
+    body.appendChild(autoPanel);
+
     const formPanel = el('div','panel');
-    formPanel.appendChild(el('h2', null, '회차 추가 / 수정'));
+    formPanel.appendChild(el('h2', null, '회차 개별 추가 / 수정'));
     const row1 = el('div','row');
     row1.innerHTML = `
       <div class="field"><label>회차 번호</label><input id="f_round" type="number"></div>
@@ -700,7 +756,8 @@ async function renderTeacherSchedule(body){
     const row2 = el('div','row');
     row2.innerHTML = `
       <div class="field"><label>Day 시작</label><input id="f_dayStart" type="number"></div>
-      <div class="field"><label>Day 끝</label><input id="f_dayEnd" type="number"></div>`;
+      <div class="field"><label>Day 끝</label><input id="f_dayEnd" type="number"></div>
+      <div class="field"><label>출제 문항 수</label><input id="f_questionCount" type="number" placeholder="비우면 기본값"></div>`;
     const row3 = el('div','row');
     row3.innerHTML = `
       <div class="field"><label>시작일</label><input id="f_openDate" type="date"></div>
@@ -713,7 +770,8 @@ async function renderTeacherSchedule(body){
       const round = {
         round: qs('#f_round',formPanel).value, label: qs('#f_label',formPanel).value,
         dayStart: qs('#f_dayStart',formPanel).value, dayEnd: qs('#f_dayEnd',formPanel).value,
-        openDate: qs('#f_openDate',formPanel).value, dueDate: qs('#f_dueDate',formPanel).value
+        openDate: qs('#f_openDate',formPanel).value, dueDate: qs('#f_dueDate',formPanel).value,
+        questionCount: qs('#f_questionCount',formPanel).value
       };
       if(!round.round || !round.dayStart || !round.dayEnd){ msg.innerHTML='<div class="error">회차 번호와 Day 범위는 필수입니다.</div>'; return; }
       const r = await call('upsertRound', {round});
@@ -725,22 +783,22 @@ async function renderTeacherSchedule(body){
   }
 
   const listPanel = el('div','panel');
-  listPanel.appendChild(el('h2', null, '등록된 회차'));
+  listPanel.appendChild(el('h2', null, `등록된 회차 <span class="badge badge-done">${res.rounds.length}개</span>`));
   if(res.rounds.length===0){
     listPanel.appendChild(el('div','hint','등록된 회차가 없어요.'));
   } else {
     const table = el('table');
-    table.innerHTML = '<tr><th>회차</th><th>제목</th><th>Day</th><th>시작일</th><th>마감일</th>'+(isAdmin?'<th></th>':'')+'</tr>';
+    table.innerHTML = '<tr><th>회차</th><th>제목</th><th>Day</th><th>문항수</th><th>시작일</th><th>마감일</th>'+(isAdmin?'<th></th>':'')+'</tr>';
     res.rounds.forEach(r=>{
       const tr = el('tr');
-      let extra = '';
-      tr.innerHTML = `<td>${r.round}</td><td>${r.label||''}</td><td>${r.dayStart}~${r.dayEnd}</td><td>${r.openDate}</td><td>${r.dueDate}</td>`;
+      tr.innerHTML = `<td>${r.round}</td><td>${r.label||''}</td><td>${r.dayStart}~${r.dayEnd}</td><td>${r.questionCount||'-'}</td><td>${r.openDate}</td><td>${r.dueDate}</td>`;
       if(isAdmin){
         const td = el('td');
         const editBtn = el('button','btn btn-ghost btn-sm','수정');
         editBtn.onclick = ()=>{
           qs('#f_round').value=r.round; qs('#f_label').value=r.label||'';
           qs('#f_dayStart').value=r.dayStart; qs('#f_dayEnd').value=r.dayEnd;
+          qs('#f_questionCount').value=r.questionCount||'';
           qs('#f_openDate').value=r.openDate; qs('#f_dueDate').value=r.dueDate;
           window.scrollTo(0,0);
         };
@@ -769,7 +827,7 @@ async function renderTeacherStudents(body){
   bulkPanel.appendChild(el('h2', null, '학생 일괄 등록'));
   bulkPanel.appendChild(el('div','hint',
     '두 가지 형식 중 편한 걸 쓰세요 (줄마다 자동으로 구분됩니다):<br>' +
-    '· <b>간편 등록</b>: 학년(탭)반(탭)번호(탭)이름 — 나이스 명렬표를 엑셀에서 그대로 복사해 붙여넣으면 됩니다. 아이디·초기비밀번호(1234)는 자동 생성돼요.<br>' +
+    '· <b>간편 등록</b>: 학년(탭)반(탭)번호(탭)이름 — 나이스 명렬표를 엑셀에서 그대로 복사해 붙여넣으면 됩니다. "1학년", "3반"처럼 글자가 붙어 있어도 숫자만 알아서 인식해요. 아이디·초기비밀번호(1234)는 자동 생성돼요.<br>' +
     '· <b>전체 지정</b>: 아이디(탭)이름(탭)학년(탭)반(탭)번호(탭)초기비밀번호<br>' +
     '엑셀 파일(.xlsx/.csv)을 통째로 올려도 자동으로 읽어서 아래 칸에 채워줘요.'
   ));
@@ -832,6 +890,86 @@ async function renderTeacherStudents(body){
       };
       td.appendChild(resetBtn);
       tr.innerHTML = `<td>${s.grade}</td><td>${s.class}</td><td>${s.number}</td><td>${s.name}</td><td>${s.id}</td>`;
+      tr.appendChild(td);
+      table.appendChild(tr);
+    });
+    listPanel.appendChild(table);
+  }
+  body.appendChild(listPanel);
+}
+
+async function renderTeacherAccounts(body){
+  const res = await call('listTeachers', {});
+  body.innerHTML = '';
+  if(!res.ok){ body.appendChild(el('div','panel error', res.message)); return; }
+
+  const bulkPanel = el('div','panel');
+  bulkPanel.appendChild(el('h2', null, '교사 계정 일괄 등록'));
+  bulkPanel.appendChild(el('div','hint',
+    '두 가지 형식 중 편한 걸 쓰세요:<br>' +
+    '· <b>담임 간편 등록</b>: 아이디(탭)이름(탭)학년(탭)반(탭)초기비밀번호 — role은 자동으로 담임(homeroom)으로 등록돼요.<br>' +
+    '· <b>역할 직접 지정</b>: 아이디(탭)이름(탭)역할(admin/homeroom)(탭)학년(탭)반(탭)초기비밀번호 — 관리자 계정은 학년/반 칸에 ALL을 적으세요.<br>' +
+    '엑셀 파일(.xlsx/.csv)을 올려도 자동으로 읽어서 채워줘요.'
+  ));
+
+  const fileRow = el('div','row');
+  fileRow.innerHTML = `<div class="field"><label>엑셀 파일에서 불러오기 (.xlsx, .xls, .csv)</label><input type="file" id="teacherExcelFile" accept=".xlsx,.xls,.csv"></div>`;
+  bulkPanel.appendChild(fileRow);
+
+  const ta = el('textarea');
+  ta.placeholder = '[담임 간편 등록 예시]\nt101\t김담임\t1\t1\t1234\nt102\t이담임\t1\t2\t1234\n\n[역할 직접 지정 예시]\nadmin2\t박관리자\tadmin\tALL\tALL\t1234';
+  bulkPanel.appendChild(ta);
+
+  const msg = el('div','','');
+
+  qs('#teacherExcelFile', fileRow).addEventListener('change', async (e)=>{
+    const file = e.target.files[0];
+    if(!file) return;
+    msg.innerHTML = '<span class="spinner"></span> 파일을 읽는 중...';
+    try{
+      const buf = await file.arrayBuffer();
+      const wb = XLSX.read(buf, { type: 'array' });
+      const sheetName = wb.SheetNames[0];
+      const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { header: 1, raw: false, defval: '' });
+      const lines = rows
+        .map(r => r.map(c => String(c).trim()))
+        .filter(r => r.some(c => c !== ''))
+        .map(r => r.join('\t'));
+      ta.value = lines.join('\n');
+      msg.innerHTML = `<div class="success">${lines.length}줄을 불러왔어요. 내용을 확인한 뒤 [일괄 등록]을 눌러주세요.</div>`;
+    }catch(err){
+      msg.innerHTML = '<div class="error">파일을 읽는 중 오류가 발생했어요: '+err.message+'</div>';
+    }
+  });
+
+  bulkPanel.appendChild(msg);
+  const addBtn = el('button','btn btn-primary','일괄 등록');
+  addBtn.onclick = async ()=>{
+    const r = await call('bulkAddTeachers', {text: ta.value});
+    if(r.ok){ msg.innerHTML='<div class="success">'+r.message+'</div>'; renderTeacherAccounts(body); }
+    else msg.innerHTML='<div class="error">'+r.message+'</div>';
+  };
+  bulkPanel.appendChild(addBtn);
+  body.appendChild(bulkPanel);
+
+  const listPanel = el('div','panel');
+  listPanel.appendChild(el('h2', null, `교사 계정 목록 <span class="badge badge-done">${res.teachers.length}명</span>`));
+  if(res.teachers.length===0){
+    listPanel.appendChild(el('div','hint','등록된 교사 계정이 없어요.'));
+  } else {
+    const table = el('table');
+    table.innerHTML = '<tr><th>아이디</th><th>이름</th><th>역할</th><th>학년</th><th>반</th><th></th></tr>';
+    res.teachers.forEach(t=>{
+      const tr = el('tr');
+      const td = el('td');
+      const resetBtn = el('button','btn btn-ghost btn-sm','비번 초기화');
+      resetBtn.onclick = async ()=>{
+        if(!confirm(`${t.name} 계정의 비밀번호를 1234로 초기화할까요?`)) return;
+        const r = await call('resetTeacherPassword', {teacherId: t.id, newPw: '1234'});
+        alert(r.ok ? r.message : r.message);
+      };
+      td.appendChild(resetBtn);
+      tr.innerHTML = `<td>${t.id}</td><td>${t.name}</td><td>${t.role==='admin'?'관리자':'담임'}</td><td>${t.grade}</td><td>${t.class}</td>`;
       tr.appendChild(td);
       table.appendChild(tr);
     });
