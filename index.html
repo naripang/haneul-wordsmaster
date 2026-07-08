@@ -22,6 +22,7 @@
   header.top .sub{font-size:11.5px; color:var(--ink-soft); font-family:'IBM Plex Mono',monospace;}
   .whoami{display:flex; align-items:center; gap:10px; font-size:13px;}
   .whoami .pill{background:var(--card); border:1px solid var(--line); border-radius:99px; padding:5px 12px; font-weight:600;}
+  .impersonate-banner{width:100%; margin-top:10px; padding:8px 14px; border-radius:10px; background:#fff3cd; border:1px solid #ffe08a; color:#7a5c00; font-size:13px; font-weight:600;}
   .navtabs{display:flex; gap:6px; flex-wrap:wrap; margin-bottom:16px;}
   .navtab{font-size:12.5px; font-weight:600; padding:8px 12px; border-radius:8px 8px 2px 2px; border:1px solid var(--line); border-bottom:3px solid var(--line); background:var(--card); color:var(--ink-soft); cursor:pointer;}
   .navtab.active{color:var(--ink); border-color:var(--sky); background:var(--sky-soft);}
@@ -137,6 +138,8 @@ const state = {
   tab: null,
   quiz: null,
   loading: false,
+  impersonating: false, // 관리자가 다른 계정 화면을 미리보기 중인지
+  adminBackup: null,    // 미리보기 시작 전 관리자 자신의 {token, user}
 };
 
 function el(tag, cls, html){ const e=document.createElement(tag); if(cls) e.className=cls; if(html!==undefined) e.innerHTML=html; return e; }
@@ -168,22 +171,33 @@ function ensureXLSX(){
  * CORS preflight(OPTIONS)를 먼저 보내는데, Apps Script 웹앱은 OPTIONS에 정상 응답할 수
  * 없어 요청이 막힙니다. text/plain은 "단순 요청"으로 분류되어 preflight 없이 바로 처리됩니다.
  */
-async function call(action, params){
+/**
+ * 콜드스타트나 순간적인 트래픽 겹침 등으로 첫 요청이 일시적으로 실패하는 경우가
+ * 있어, 네트워크 오류나 응답 파싱 실패 시 짧게 대기 후 한 번만 자동 재시도합니다.
+ */
+async function callOnce(body){
+  const res = await fetch(API_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify(body)
+  });
+  return await res.json();
+}
+
+async function call(action, params, _isRetry){
   const body = Object.assign({ action: action }, params || {});
   if(state.token) body.token = state.token;
-  let res;
-  try{
-    res = await fetch(API_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify(body)
-    });
-  }catch(err){
-    return { ok:false, message:'서버에 연결할 수 없습니다. 네트워크 상태를 확인해주세요.' };
-  }
+
   let data;
-  try{ data = await res.json(); }
-  catch(err){ return { ok:false, message:'서버 응답을 해석할 수 없습니다.' }; }
+  try{
+    data = await callOnce(body);
+  }catch(err){
+    if(!_isRetry){
+      await new Promise(r=>setTimeout(r, 800));
+      return call(action, params, true);
+    }
+    return { ok:false, message:'서버 응답을 확인할 수 없습니다. 잠시 후 다시 시도해주세요.' };
+  }
 
   if(!data.ok && /세션이 만료|로그인이 필요/.test(data.message||'')){
     // 세션 만료 시 자동 로그아웃 처리
@@ -272,7 +286,9 @@ function renderLogin(){
 
 function logout(){
   const tokenToRevoke = state.token;
-  state.role=null; state.user=null; state.token=null; state.tab=null; clearSession(); render();
+  state.role=null; state.user=null; state.token=null; state.tab=null;
+  state.impersonating=false; state.adminBackup=null;
+  clearSession(); render();
   if(tokenToRevoke){
     // 화면 전환을 기다릴 필요 없이 서버 세션만 백그라운드로 정리
     fetch(API_URL, {
@@ -281,6 +297,21 @@ function logout(){
       body: JSON.stringify({ action:'logout', token: tokenToRevoke })
     }).catch(()=>{});
   }
+}
+
+/**
+ * 미리보기 모드 종료: 미리보기용으로 새로 발급받은 임시 세션은 그냥 버려두고(어차피
+ * 12시간 뒤 자동 만료), 시작 전 저장해둔 관리자 자신의 토큰/정보로 그대로 복귀합니다.
+ */
+function exitImpersonation(){
+  if(!state.adminBackup){ logout(); return; }
+  state.token = state.adminBackup.token;
+  state.user = state.adminBackup.user;
+  state.role = 'teacher';
+  state.impersonating = false;
+  state.adminBackup = null;
+  state.tab = 'status';
+  render();
 }
 
 /* ===================== 공통 헤더 ===================== */
@@ -295,10 +326,19 @@ function headerBlock(title, tabs){
   header.innerHTML = `<h1>${title}</h1>`;
   const who = el('div','whoami');
   who.innerHTML = `<span class="pill">${nameLabel}</span>`;
-  const logoutBtn = el('button','btn btn-ghost btn-sm','로그아웃');
-  logoutBtn.onclick = logout;
-  who.appendChild(logoutBtn);
+  if(state.impersonating){
+    const backBtn = el('button','btn btn-teal btn-sm','미리보기 종료 → 관리자로');
+    backBtn.onclick = exitImpersonation;
+    who.appendChild(backBtn);
+  } else {
+    const logoutBtn = el('button','btn btn-ghost btn-sm','로그아웃');
+    logoutBtn.onclick = logout;
+    who.appendChild(logoutBtn);
+  }
   header.appendChild(who);
+  if(state.impersonating){
+    header.appendChild(el('div','impersonate-banner', `👀 미리보기 모드 — ${state.role==='student'?'학생':'교사'} 화면을 보고 있어요 (실제 로그인이 아니라 관리자가 확인용으로 보는 화면입니다)`));
+  }
   const nav = el('div','navtabs');
   tabs.forEach(([key,label])=>{
     const t = el('div','navtab'+(state.tab===key?' active':''), label);
@@ -552,6 +592,11 @@ async function renderTeacher(){
   tabs.push(['settings','설정']);
   const {header, nav} = headerBlock('단어 시험 관리', tabs);
   app.appendChild(header);
+
+  if(state.user.role==='admin' && !state.impersonating){
+    app.appendChild(buildPreviewBar());
+  }
+
   app.appendChild(nav);
   const body = el('div');
   app.appendChild(body);
@@ -564,6 +609,65 @@ async function renderTeacher(){
   else if(state.tab==='students') await renderTeacherStudents(body);
   else if(state.tab==='teachers') await renderTeacherAccounts(body);
   else if(state.tab==='settings') renderTeacherSettings(body);
+}
+
+/**
+ * 관리자 전용 "다른 화면 미리보기" 바. 학생 또는 다른 교사 계정을 골라 그 사람의
+ * 화면을 그대로 볼 수 있게 새 세션을 발급받습니다.
+ * ⚠️ 대상이 실제로 로그인해서 쓰고 있는 중이었다면 그 세션은 끊깁니다(1계정 1세션
+ * 정책 때문). 실사용 시간대는 피해서 테스트하는 걸 권장합니다.
+ */
+function buildPreviewBar(){
+  const bar = el('div','panel');
+  bar.style.cssText = 'display:flex; gap:10px; align-items:center; flex-wrap:wrap; padding:14px 18px;';
+
+  const label = el('span', null, '👀 다른 화면 미리보기:');
+  label.style.fontWeight = '700';
+
+  const typeSel = el('select');
+  typeSel.innerHTML = '<option value="student">학생</option><option value="teacher">교사</option>';
+  typeSel.style.width = 'auto';
+
+  const targetSel = el('select');
+  targetSel.style.cssText = 'width:auto; min-width:220px;';
+  targetSel.innerHTML = '<option value="">불러오는 중...</option>';
+
+  async function loadTargets(){
+    targetSel.innerHTML = '<option value="">불러오는 중...</option>';
+    if(typeSel.value==='student'){
+      const r = await call('listStudents', {});
+      targetSel.innerHTML = r.ok && r.students.length
+        ? r.students.map(s=>`<option value="${s.id}">${s.grade}학년 ${s.class}반 ${s.number}번 ${s.name} (${s.id})</option>`).join('')
+        : '<option value="">등록된 학생이 없어요</option>';
+    } else {
+      const r = await call('listTeachers', {});
+      const roleLabel = t => t.role==='admin' ? '관리자' : t.role==='grade' ? '학년관리자' : '담임';
+      targetSel.innerHTML = r.ok && r.teachers.length
+        ? r.teachers.map(t=>`<option value="${t.id}">${t.name} (${roleLabel(t)}, ${t.grade}학년 ${t.class}반)</option>`).join('')
+        : '<option value="">등록된 교사가 없어요</option>';
+    }
+  }
+  typeSel.onchange = loadTargets;
+  loadTargets();
+
+  const goBtn = el('button','btn btn-teal btn-sm','미리보기 시작');
+  goBtn.onclick = async ()=>{
+    if(!targetSel.value){ alert('대상을 선택해주세요.'); return; }
+    goBtn.disabled = true; goBtn.textContent = '전환 중...';
+    const r = await call('impersonate', {targetType: typeSel.value, targetId: targetSel.value});
+    goBtn.disabled = false; goBtn.textContent = '미리보기 시작';
+    if(!r.ok){ alert(r.message); return; }
+    state.adminBackup = { token: state.token, user: state.user };
+    state.impersonating = true;
+    state.token = r.token;
+    if(typeSel.value==='student'){ state.role='student'; state.user=r.student; state.tab='home'; }
+    else{ state.role='teacher'; state.user=r.teacher; state.tab='status'; }
+    render();
+  };
+
+  bar.appendChild(label); bar.appendChild(typeSel); bar.appendChild(targetSel); bar.appendChild(goBtn);
+  bar.appendChild(el('div','hint','⚠️ 그 계정이 실제로 로그인 중이었다면 미리보기 시작 시 로그아웃돼요. 수업 시간대는 피해주세요.'));
+  return bar;
 }
 
 let selectedRound = null;
