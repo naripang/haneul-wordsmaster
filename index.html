@@ -807,30 +807,33 @@ async function renderTeacherSchedule(body){
     patternPanel.style.borderColor = 'var(--sky)';
     patternPanel.appendChild(el('h2', null, '샘플: 월수금 2000개 프로젝트'));
     patternPanel.appendChild(el('div','hint',
-      '단어 시트에 이미 매겨진 Day(보통 1~20, 하루 100단어)를 5일씩 묶어 한 주를 구성합니다.<br>' +
+      '전체 단어를 아래 "하루 단어 수"만큼씩 묶어 Day를 다시 매기고, 5일(=1주)씩 묶어 구성합니다.<br>' +
       '· 월요일: 새 단어 2일치 · 수요일: 새 단어 2일치 · 금요일: 그 주 5일치 누적 복습<br>' +
-      'Day가 20까지 있다면 이 3회 사이클이 4주 반복됩니다. <b>기존 진도표는 전부 대체됩니다.</b>'
+      '하루 100개씩이면 20일치(4주), 200개씩이면 10일치(2주)가 됩니다. <b>기존 진도표는 전부 대체되고, 단어 Day도 여기서 새로 매겨집니다.</b>'
     ));
+    const ppRow0 = el('div','row');
+    ppRow0.innerHTML = `<div class="field"><label>하루 단어 수 (Day 재구성 기준)</label><input id="pp_wordsPerDay" type="number" placeholder="예: 100" value="100"></div>`;
     const ppRow1 = el('div','row');
     ppRow1.innerHTML = `<div class="field"><label>시작하는 주의 월요일</label><input id="pp_monday" type="date"></div>`;
     const ppRow2 = el('div','row');
     ppRow2.innerHTML = `
       <div class="field"><label>월/수 (신규) 문항 수</label><input id="pp_newQuestions" type="number" placeholder="예: 20" value="20"></div>
       <div class="field"><label>금 (누적 복습) 문항 수</label><input id="pp_reviewQuestions" type="number" placeholder="예: 30" value="30"></div>`;
-    patternPanel.appendChild(ppRow1); patternPanel.appendChild(ppRow2);
+    patternPanel.appendChild(ppRow0); patternPanel.appendChild(ppRow1); patternPanel.appendChild(ppRow2);
     const ppMsg = el('div','','');
     patternPanel.appendChild(ppMsg);
     const ppBtn = el('button','btn btn-teal','이 패턴으로 생성');
     ppBtn.onclick = async ()=>{
+      const wordsPerDay = qs('#pp_wordsPerDay',patternPanel).value;
       const mondayDate = qs('#pp_monday',patternPanel).value;
       const newQuestions = qs('#pp_newQuestions',patternPanel).value;
       const reviewQuestions = qs('#pp_reviewQuestions',patternPanel).value;
-      if(!mondayDate || !newQuestions || !reviewQuestions){
+      if(!wordsPerDay || !mondayDate || !newQuestions || !reviewQuestions){
         ppMsg.innerHTML = '<div class="error">모든 항목을 입력해주세요.</div>'; return;
       }
-      if(!confirm('기존 진도표를 전부 지우고 월/수/금 패턴으로 새로 생성합니다. 계속할까요?')) return;
+      if(!confirm('기존 진도표와 단어 Day 구성을 전부 새로 만듭니다. 계속할까요?')) return;
       ppBtn.disabled = true; ppBtn.innerHTML = '<span class="spinner"></span> 생성 중...';
-      const r = await call('generatePatternSchedule', {mondayDate, newQuestions, reviewQuestions});
+      const r = await call('generatePatternSchedule', {wordsPerDay, mondayDate, newQuestions, reviewQuestions});
       ppBtn.disabled = false; ppBtn.textContent = '이 패턴으로 생성';
       if(r.ok){ ppMsg.innerHTML = '<div class="success">'+r.message+'</div>'; renderTeacherSchedule(body); }
       else ppMsg.innerHTML = '<div class="error">'+r.message+'</div>';
